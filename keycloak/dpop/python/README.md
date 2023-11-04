@@ -8,12 +8,30 @@ https://datatracker.ietf.org/doc/html/rfc9449
 Need to enable preview feature `dpop`
 
 ```
-podman run -it --rm -p 8080:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:nightly start-dev --features=dpop
+podman run -it --rm --name keycloak-test -p 8080:8080 \
+    -e KEYCLOAK_ADMIN=admin \
+    -e KEYCLOAK_ADMIN_PASSWORD=admin \
+    quay.io/keycloak/keycloak:nightly \
+    start-dev --features=dpop
 ```
 
-## add a client
+## Add a public client with DPoP bound tokens enabled
 
+### Using `kcadm.sh` and the [client.json](client.json)
+```
+podman exec -i keycloak-test \
+    /opt/keycloak/bin/kcadm.sh \
+    create clients \
+    --server http://localhost:8080 \
+    --realm master \
+    --user admin \
+    --password admin \
+    -f - < client.json
+```
+
+### Manually
 dpop-client
+- make sure its public
 - redirect-uri: http://localhost:8000
 - Advanced Tab -> OAuth 2.0 DPoP Bound Access Tokens Enabled
 

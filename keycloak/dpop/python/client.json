@@ -1,0 +1,10 @@
+{
+    "clientId": "dpop-client",
+    "standardFlowEnabled": true,
+    "redirectUris": ["http://localhost:8000/*"],
+    "publicClient": true,
+    "attributes": {
+        "dpop.bound.access.tokens":  "true"
+    }
+}
+
