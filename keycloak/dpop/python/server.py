@@ -6,6 +6,7 @@ import logging
 import os
 import socketserver
 import time
+import urllib.parse
 import uuid
 from urllib.parse import urlparse, parse_qs
 
@@ -193,9 +194,17 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
     def handle_login_endpoint(self):
+        login_query_params = {
+            'client_id': MY_CLIENT_ID,
+            'redirect_uri': f'http://localhost:{MY_PORT}/authorize',
+            'response_type': 'code',
+            'scope': 'openid'
+        }
+
+        encoded_query_params = urllib.parse.urlencode(login_query_params)
         self.send_response(302)
         self.send_header('location',
-                         f'{OIDC_CONFIGURATION["authorization_endpoint"]}?client_id={MY_CLIENT_ID}&redirect_uri=http://localhost:{MY_PORT}/authorize&response_type=code&scope=openid')
+                         f'{OIDC_CONFIGURATION["authorization_endpoint"]}?{encoded_query_params}')
         self.end_headers()
 
     def do_GET(self):
