@@ -1,5 +1,5 @@
 
-DPoP on Keycloak (23)
+# DPoP on Keycloak (nightly)
 
 https://datatracker.ietf.org/doc/html/rfc9449
 
@@ -17,11 +17,15 @@ dpop-client
 - redirect-uri: http://localhost:8000
 - Advanced Tab -> OAuth 2.0 DPoP Bound Access Tokens Enabled
 
-## Generate a JWKS
+## Generate the keys
+Requirements - openssl and https://github.com/jphastings/jwker
+1. `openssl genrsa -out privateKey.pem 2048`
+2. `openssl rsa -in privateKey.pem -pubout -out publicKey.pem`
+3. `jwker publicKey.pem > publicKey.jwk`
 
-https://web3auth.io/docs/auth-provider-setup/byo-jwt-providers#how-to-convert-pem-to-jwks
+## Set up the python project
 
-https://github.com/jphastings/jwker
-
-
-doesn't like HS256
+1. `python -m venv env`
+2. `source bin/env/activate`
+3. `pip install -r requirements.txt`
+4. `python server.py`

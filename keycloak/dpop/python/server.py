@@ -1,25 +1,26 @@
-import http.server
-import socketserver
-from urllib.parse import urlparse, parse_qs
-import requests
-from jose import jwt
-import uuid
-import time
-import json
-import hashlib
 import base64
+import hashlib
+import http.server
+import json
 import logging
 import os
+import socketserver
+import time
+import uuid
+from urllib.parse import urlparse, parse_qs
+
+import requests
+from jose import jwt
 
 log = logging.getLogger(__name__)
 
 KEYCLOAK_PROTO = 'http'  # Yep, http for local testing, like I said, not production code.
 KEYCLOAK_HOST_AND_REALM = 'localhost:8080/realms/master'
 KEYCLOAK_BASE_URL = f'{KEYCLOAK_PROTO}://{KEYCLOAK_HOST_AND_REALM}'
+KEYCLOAK_WELL_KNOWN = f'{KEYCLOAK_BASE_URL}/.well-known/openid-configuration'
+
 MY_PORT = 8000
 MY_CLIENT_ID = 'dpop-client'
-
-KEYCLOAK_WELL_KNOWN = f'{KEYCLOAK_BASE_URL}/.well-known/openid-configuration'
 
 
 class Dpop:
@@ -219,19 +220,25 @@ def create_dpop(htm, htu):
 
 
 def does_server_support_dpop(oidc_configuration):
-    return oidc_configuration['dpop_signing_alg_values_supported'] and len(
-        oidc_configuration['dpop_signing_alg_values_supported']) > 0
+    dpop_attr = 'dpop_signing_alg_values_supported'
+
+    return dpop_attr in oidc_configuration and len(
+        oidc_configuration[dpop_attr]) > 0
 
 
 def main():
     logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+
     well_known_response = requests.get(KEYCLOAK_WELL_KNOWN)
     well_known_response_json = well_known_response.json()
 
     if well_known_response.status_code != 200:
         log.error(f'Could not retrieve well-known OIDC configuration from {KEYCLOAK_WELL_KNOWN}')
+        log.error("Have you started your authorization server?")
+        return
     elif not does_server_support_dpop(well_known_response_json):
         log.error("Authorization Server does not support DPoP. :-(")
+        log.error("Did you start with a version of Keycloak that supports it, and enable the DPoP feature?")
         return
 
     log.info("Authorization Server advertises DPoP support!")
@@ -240,11 +247,11 @@ def main():
     OIDC_CONFIGURATION = well_known_response_json
 
     global PRIVATE_KEY
-    with open("privateKey.pem", 'r') as f:
+    with open(os.environ.get("DPOP_PRIVATE_KEY_FILE", "privateKey.pem"), 'r') as f:
         PRIVATE_KEY = f.read()
 
     global PUBLIC_JWK
-    with open("publicKey.jwk", 'r') as f:
+    with open(os.environ.get("DPOP_PUBLIC_KEY_FILE", "publicKey.jwk"), 'r') as f:
         PUBLIC_JWK = json.loads(f.read())
 
     with socketserver.TCPServer(("", MY_PORT), DpopRequestHandler) as httpd:
