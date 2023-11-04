@@ -53,17 +53,26 @@ class Dpop:
         # we need to hash the access token - per RFC9449 - Base64(sha256(access token)) - only if used with an access
         # token But, it seems like Keycloak doesn't require this ... yet. DPoP _is_ a preview feature.
         sha256_of_access_token = hashlib.sha256(access_token.encode()).digest()
-        return base64.b64encode(sha256_of_access_token).decode()
+        return base64.urlsafe_b64encode(sha256_of_access_token).decode()
 
 
 class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
-    """
+    f"""
     This is not meant to be production ready code, but to demonstrate the flows used for DPoP in OAuth
 
     Assumes
     - running on localhost
     - you have created a client 'dpop-client' on your keycloak instance
-    - you have configured the client to be DPoP bound
+    - the client has an allowed redirect URI which matches where this is running
+    - the client is DPoP bound via the Advanced Settings tab in Keycloak
+
+    There are two main endpoints
+    - /login
+        This will initiate authorization code flow with the given authorization server
+    - /authorize
+        This will receive the authorization response from the authorization server
+        and attempts to exchange the code for token, use the refresh token, and check
+        the userinfo endpoint.
     """
 
     def write_h1(self, value):
@@ -231,7 +240,7 @@ def does_server_support_dpop(oidc_configuration):
     dpop_attr = 'dpop_signing_alg_values_supported'
 
     return dpop_attr in oidc_configuration and len(
-        oidc_configuration[dpop_attr]) > 0
+        oidc_configuration[dpop_attr]) > 0 and 'RS256' in oidc_configuration[dpop_attr]
 
 
 def main():
