@@ -102,7 +102,7 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
     def invoke_userinfo(self, current_access_token):
         # Interestingly Keycloak doesn't seem concerned about our lack of 'ath' field here...
         userinfo_endpoint = OIDC_CONFIGURATION['userinfo_endpoint']
-        dpop_proof = create_dpop('POST', userinfo_endpoint)
+        dpop_proof = create_dpop_proof('POST', userinfo_endpoint)
 
         self.write_dpop_info(dpop_proof)
 
@@ -119,7 +119,7 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def invoke_refresh_token(self, current_refresh_token):
         token_endpoint = OIDC_CONFIGURATION['token_endpoint']
-        dpop_proof = create_dpop('POST', token_endpoint)
+        dpop_proof = create_dpop_proof('POST', token_endpoint)
 
         self.write_dpop_info(dpop_proof)
 
@@ -151,7 +151,7 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         # DPoP stuff comes next!
         token_endpoint = OIDC_CONFIGURATION['token_endpoint']
-        dpop_proof = create_dpop('POST', token_endpoint)
+        dpop_proof = create_dpop_proof('POST', token_endpoint)
 
         self.write_dpop_info(dpop_proof)
 
@@ -212,11 +212,10 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
 
 
-def create_dpop(htm, htu):
-    dpop_payload_for_refresh = Dpop.dpop_data(htm, htu)
-    dpop_for_refresh = jwt.encode(dpop_payload_for_refresh, PRIVATE_KEY, algorithm='RS256',
-                                  headers=Dpop.dpop_header(PUBLIC_JWK))
-    return dpop_for_refresh
+def create_dpop_proof(htm, htu):
+    dpop_payload = Dpop.dpop_data(htm, htu)
+    return jwt.encode(dpop_payload, PRIVATE_KEY, algorithm='RS256',
+                      headers=Dpop.dpop_header(PUBLIC_JWK))
 
 
 def does_server_support_dpop(oidc_configuration):
