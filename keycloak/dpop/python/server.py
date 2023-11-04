@@ -116,6 +116,9 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         self.write_dpop_info(dpop_proof)
 
+        # It seems like we must send Bearer, though spec says it should be DPoP ?
+        # https://datatracker.ietf.org/doc/html/rfc9449#http-auth-scheme
+        # or is this "bound" to the OIDC specification and can only accept bearer?
         userinfo_response = requests.post(userinfo_endpoint,
                                           headers={
                                               'Authorization': f'Bearer {current_access_token}',
@@ -230,8 +233,8 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
 
 
-def create_dpop_proof(htm, htu):
-    dpop_payload = Dpop.dpop_data(htm, htu)
+def create_dpop_proof(htm, htu, ath=None):
+    dpop_payload = Dpop.dpop_data(htm, htu, ath)
     return jwt.encode(dpop_payload, PRIVATE_KEY, algorithm='RS256',
                       headers=Dpop.dpop_header(PUBLIC_JWK))
 
