@@ -8,7 +8,6 @@ import socketserver
 import time
 import urllib.parse
 import uuid
-from urllib.parse import urlparse, parse_qs
 
 import requests
 from jose import jwt
@@ -22,6 +21,12 @@ KEYCLOAK_WELL_KNOWN = f'{KEYCLOAK_BASE_URL}/.well-known/openid-configuration'
 
 MY_PORT = 8000
 MY_CLIENT_ID = 'dpop-client'
+
+# Config that should be set on start up
+SIGNING_ALG: str | None = None
+OIDC_CONFIGURATION: dict | None = None
+PRIVATE_KEY: str | None = None
+PUBLIC_JWK: str | None = None
 
 
 class Dpop:
@@ -75,23 +80,24 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
         the userinfo endpoint.
     """
 
+    def write_wrapped_tag(self, tag, value):
+        self.wfile.write(bytes(f'<{tag}>{value}</{tag}>', 'utf-8'))
+
     def write_h1(self, value):
-        self.wfile.write(b'<h1>')
-        self.wfile.write(bytes(value, 'utf-8'))
-        self.wfile.write(b'</h1>')
+        self.write_wrapped_tag('h1', value)
 
     def write_preformatted_string(self, value):
-        self.wfile.write(b'<pre>')
-        self.wfile.write(bytes(value, 'utf-8'))
-        self.wfile.write(b'</pre>')
+        self.write_wrapped_tag('pre', value)
 
     def write_para(self, value):
-        self.wfile.write(b'<p>')
-        self.wfile.write(bytes(value, 'utf-8'))
-        self.wfile.write(b'</p>')
+        self.write_wrapped_tag('p', value)
 
     def write_hr(self):
         self.wfile.write(b'<hr />')
+
+    def write_section(self, value):
+        self.write_hr()
+        self.write_h1(value)
 
     def write_response_failure(self, response):
         self.write_para('It had some problems.')
@@ -107,11 +113,12 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def write_dpop_info(self, dpop_proof):
         self.write_para("Here is our DPoP proof we will send")
-        self.write_preformatted_string(dpop_proof)
+        self.write_para(dpop_proof)
 
     def invoke_userinfo(self, current_access_token):
         # Interestingly Keycloak doesn't seem concerned about our lack of 'ath' field here...
         userinfo_endpoint = OIDC_CONFIGURATION['userinfo_endpoint']
+        self.write_para(f"Request to {userinfo_endpoint}")
         dpop_proof = create_dpop_proof('POST', userinfo_endpoint)
 
         self.write_dpop_info(dpop_proof)
@@ -132,6 +139,7 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def invoke_refresh_token(self, current_refresh_token):
         token_endpoint = OIDC_CONFIGURATION['token_endpoint']
+        self.write_para(f"Request to {token_endpoint}")
         dpop_proof = create_dpop_proof('POST', token_endpoint)
 
         self.write_dpop_info(dpop_proof)
@@ -164,6 +172,7 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         # DPoP stuff comes next!
         token_endpoint = OIDC_CONFIGURATION['token_endpoint']
+        self.write_para(f"Request to {token_endpoint}")
         dpop_proof = create_dpop_proof('POST', token_endpoint)
 
         self.write_dpop_info(dpop_proof)
@@ -189,17 +198,15 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
         if not response:
             return
 
-        self.write_hr()
-        self.write_h1('Now we will try for a refresh token using DPoP...')
-
         # Now, lets immediately exchange that refresh token for a new access token. Live life on the edge.
+        self.write_section('Now we will try for a refresh token using DPoP...')
+
         refresh_response = self.invoke_refresh_token(response['refresh_token'])
         if not refresh_response:
             return
 
         # How about lets try to get stuff from the user info endpoint?
-        self.write_hr()
-        self.write_h1('Now we will try for the userinfo endpoint using DPoP')
+        self.write_section('Now we will try for the userinfo endpoint using DPoP')
 
         userinfo_response = self.invoke_userinfo(refresh_response['access_token'])
         if not userinfo_response:
@@ -220,8 +227,8 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        parsed_url = urlparse(self.path)
-        query_params = parse_qs(parsed_url.query)
+        parsed_url = urllib.parse.urlparse(self.path)
+        query_params = urllib.parse.parse_qs(parsed_url.query)
 
         if parsed_url.path == '/authorize':  # do code to token exchange + other fun stuff.
             self.handle_authorize_endpoint(query_params)
@@ -235,19 +242,23 @@ class DpopRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 def create_dpop_proof(htm, htu, ath=None):
     dpop_payload = Dpop.dpop_data(htm, htu, ath)
-    return jwt.encode(dpop_payload, PRIVATE_KEY, algorithm='RS256',
+    return jwt.encode(dpop_payload, PRIVATE_KEY, algorithm=SIGNING_ALG,
                       headers=Dpop.dpop_header(PUBLIC_JWK))
 
 
 def does_server_support_dpop(oidc_configuration):
     dpop_attr = 'dpop_signing_alg_values_supported'
 
+    # on top of verifying dpop is even advertised, validate that our SIGNING_ALG is supported.
     return dpop_attr in oidc_configuration and len(
-        oidc_configuration[dpop_attr]) > 0 and 'RS256' in oidc_configuration[dpop_attr]
+        oidc_configuration[dpop_attr]) > 0 and SIGNING_ALG in oidc_configuration[dpop_attr]
 
 
 def main():
     logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+
+    global SIGNING_ALG
+    SIGNING_ALG = os.environ.get("DPOP_SIGNING_ALG", 'RS256')
 
     well_known_response = requests.get(KEYCLOAK_WELL_KNOWN)
     well_known_response_json = well_known_response.json()
