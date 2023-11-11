@@ -8,7 +8,7 @@ https://datatracker.ietf.org/doc/html/rfc9449
 Need to enable preview feature `dpop`
 
 ```
-podman run -it --rm --name keycloak-test -p 8080:8080 \
+podman run --pull=always -it --rm --name keycloak-test -p 8080:8080 \
     -e KEYCLOAK_ADMIN=admin \
     -e KEYCLOAK_ADMIN_PASSWORD=admin \
     quay.io/keycloak/keycloak:nightly \
