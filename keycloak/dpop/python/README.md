@@ -44,6 +44,6 @@ Requirements - openssl and https://github.com/jphastings/jwker
 ## Set up the python project
 
 1. `python -m venv env`
-2. `source bin/env/activate`
+2. `source env/bin/activate`
 3. `pip install -r requirements.txt`
 4. `python server.py`
